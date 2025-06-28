@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Book Ratings Scatter Plots</title>
+<title>Quirky Goodreads Numbers</title>
 <style>
 body{font-family:Georgia,'Times New Roman',serif;background:#f7f7f7;color:#333;margin:0;padding:2rem;}
 svg{width:100%;height:350px;font:12px "Helvetica Neue",Arial,sans-serif;}
@@ -15,48 +15,69 @@ h1{font-size:2rem;margin-bottom:0.5rem;}
 </style>
 </head>
 <body>
-<h1>How Book Characteristics Shape Ratings</h1>
-<p>We sampled 5,000 Goodreads titles to explore how length, blurb size and review volume correlate with reader ratings. Each dot below represents a book; the orange curve is a smoothing line.</p>
+<h1>Curious Patterns in Goodreads Ratings</h1>
+<p>We grabbed 5,000 random books from Goodreads. The data hides quirky truths about how we read and rate.</p>
 <figure>
-<svg id="plot1"></svg>
-<figcaption>Pages vs Rating</figcaption>
+<svg id="hist"></svg>
+<figcaption>Most books are under 500 pages—doorstoppers are rare.</figcaption>
 </figure>
 <figure>
-<svg id="plot2"></svg>
-<figcaption>Blurb Length vs Rating</figcaption>
+<svg id="bar"></svg>
+<figcaption>Longer blurbs tend to score slightly higher ratings.</figcaption>
 </figure>
 <figure>
-<svg id="plot3"></svg>
-<figcaption>log10(Reviews) vs Rating</figcaption>
+<svg id="scatter"></svg>
+<figcaption>Popular books with more reviews inch toward better ratings.</figcaption>
 </figure>
 <footer>Visualization by Codex. Data from <a href="https://github.com/zygmuntz/goodbooks-10k">GoodReads</a>.</footer>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <script>
 fetch('scatter_data.json').then(r=>r.json()).then(d=>{
-  const plots=[
-    {el:'#plot1',x:'pages',y:'rating',log:false},
-    {el:'#plot2',x:'blurb',y:'rating',log:false},
-    {el:'#plot3',x:'reviews',y:'rating',log:true}
-  ];
-  plots.forEach(p=>draw(d,p));
-  addEventListener('resize',()=>plots.forEach(p=>draw(d,p)));
+  render();
+  addEventListener('resize',render);
+  function render(){drawHist(d);drawBar(d);drawScatter(d);}
 });
-function draw(data,p){
-  const svg=d3.select(p.el);
+function drawHist(data){
+  const svg=d3.select('#hist');
   svg.selectAll('*').remove();
-  const g=svg.append('g');
   const m={l:50,r:30,t:20,b:40},w=+svg.node().clientWidth,mw=w-m.l-m.r,h=350-m.t-m.b;
-  g.attr('transform',`translate(${m.l},${m.t})`);
-  const vals=data.map(d=>({x:+d[p.x],y:+d[p.y]}));
-  if(p.log)vals.forEach(v=>v.x=Math.log10(v.x||1));
-  const x=d3.scaleLinear().domain(d3.extent(vals,v=>v.x)).nice().range([0,mw]);
-  const y=d3.scaleLinear().domain(d3.extent(vals,v=>v.y)).nice().range([h,0]);
+  const g=svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
+  const pages=data.map(d=>+d.pages);
+  const x=d3.scaleLinear().domain(d3.extent(pages)).nice().range([0,mw]);
+  const bins=d3.bin().domain(x.domain()).thresholds(20)(pages);
+  const y=d3.scaleLinear().domain([0,d3.max(bins,b=>b.length)]).nice().range([h,0]);
   g.append('g').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('y1',-h).attr('stroke','#ddd'));
   g.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#ddd'));
-  g.selectAll('circle').data(vals).enter().append('circle').attr('cx',d=>x(d.x)).attr('cy',d=>y(d.y)).attr('r',6).attr('fill','steelblue').attr('opacity',0.2).append('title').text(d=>`${p.x}: ${d.x}\n${p.y}: ${d.y}`);
+  g.selectAll('rect').data(bins).enter().append('rect').attr('x',d=>x(d.x0)+1).attr('y',d=>y(d.length)).attr('width',d=>Math.max(0,x(d.x1)-x(d.x0)-1)).attr('height',d=>h-y(d.length)).attr('fill','steelblue').attr('opacity',0.6);
+}
+function drawBar(data){
+  const svg=d3.select('#bar');
+  svg.selectAll('*').remove();
+  const m={l:50,r:30,t:20,b:80},w=+svg.node().clientWidth,mw=w-m.l-m.r,h=350-m.t-m.b;
+  const g=svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
+  const bins=d3.bin().value(d=>+d.blurb).thresholds(10)(data);
+  bins.forEach(b=>b.avg=d3.mean(b,d=>+d.rating));
+  const x=d3.scaleBand().domain(bins.map((_,i)=>i)).range([0,mw]).padding(0.1);
+  const y=d3.scaleLinear().domain([d3.min(bins,b=>b.avg)-0.1,d3.max(bins,b=>b.avg)]).nice().range([h,0]);
+  const xAxis=d3.axisBottom(x).tickFormat(i=>`${Math.round(bins[i].x0)}-${Math.round(bins[i].x1)}`);
+  g.append('g').attr('transform',`translate(0,${h})`).call(xAxis).selectAll('text').attr('transform','rotate(-40)').style('text-anchor','end');
+  g.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#ddd'));
+  g.selectAll('rect').data(bins).enter().append('rect').attr('x',(d,i)=>x(i)).attr('y',d=>y(d.avg)).attr('width',x.bandwidth()).attr('height',d=>h-y(d.avg)).attr('fill','steelblue').attr('opacity',0.6).append('title').text(d=>`avg rating: ${d.avg.toFixed(2)}`);
+}
+function drawScatter(data){
+  const svg=d3.select('#scatter');
+  svg.selectAll('*').remove();
+  const m={l:50,r:30,t:20,b:40},w=+svg.node().clientWidth,mw=w-m.l-m.r,h=350-m.t-m.b;
+  const g=svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
+  const vals=data.map(d=>({x:Math.log10(+d.reviews||1),y:+d.rating}));
+  const x=d3.scaleLinear().domain(d3.extent(vals,d=>d.x)).nice().range([0,mw]);
+  const y=d3.scaleLinear().domain(d3.extent(vals,d=>d.y)).nice().range([h,0]);
+  g.append('g').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('y1',-h).attr('stroke','#ddd'));
+  g.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#ddd'));
+  g.selectAll('circle').data(vals).enter().append('circle').attr('cx',d=>x(d.x)).attr('cy',d=>y(d.y)).attr('r',6).attr('fill','steelblue').attr('opacity',0.2).append('title').text(d=>`reviews: ${Math.round(Math.pow(10,d.x))}\nrating: ${d.y}`);
   const trend=loess(vals.map(v=>v.x),vals.map(v=>v.y));
-  const lineGen=d3.line().x(d=>x(d[0])).y(d=>y(d[1]));
-  g.append('path').datum(trend).attr('fill','none').attr('stroke','#e85c47').attr('stroke-width',2).attr('d',lineGen);
+  const line=d3.line().x(d=>x(d[0])).y(d=>y(d[1]));
+  g.append('path').datum(trend).attr('fill','none').attr('stroke','#e85c47').attr('stroke-width',2).attr('d',line);
 }
 function loess(x,y,b=0.3){
   const n=x.length,r=Math.max(2,Math.ceil(b*n));
