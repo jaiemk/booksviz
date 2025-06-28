@@ -38,10 +38,11 @@ function draw(data,p){
   svg.append('g').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('y1',-h).attr('stroke','#eee'));
   svg.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#eee'));
   svg.selectAll('circle').data(vals).enter().append('circle').attr('cx',d=>x(d.x)).attr('cy',d=>y(d.y)).attr('r',6).attr('fill','steelblue').attr('opacity',0.2).append('title').text(d=>`${p.x}: ${d.x}\n${p.y}: ${d.y}`);
-  svg.append('path').attr('fill','none').attr('stroke','orange').attr('stroke-width',2).attr('d',line(loess(vals.map(v=>v.x),vals.map(v=>v.y))).x(d=>x(d[0])).y(d=>y(d[1])));
+  const trend=loess(vals.map(v=>v.x),vals.map(v=>v.y));
+  const lineGen=d3.line().x(d=>x(d[0])).y(d=>y(d[1]));
+  svg.append('path').attr('fill','none').attr('stroke','orange').attr('stroke-width',2).attr('d',lineGen(trend));
   svg.append('text').attr('x',mw/2).attr('y',-5).attr('text-anchor','middle').text(p.title);
 }
-function line(d){return d3.line()(d);} 
 function loess(x,y,b=0.3){
   const n=x.length,r=Math.max(2,Math.ceil(b*n));
   return x.map((x0,i)=>{
