@@ -27,22 +27,24 @@ fetch('scatter_data.json').then(r=>r.json()).then(d=>{
   plots.forEach(p=>draw(d,p));
   addEventListener('resize',()=>plots.forEach(p=>draw(d,p)));
 });
-function draw(data,p){
-  const svg=d3.select(p.el).selectAll('*').remove().append('g');
-  const m={l:50,r:30,t:20,b:40},w=p.el==='svg'?300:+d3.select(p.el).node().clientWidth,mw=w-m.l-m.r,h=350-m.t-m.b;
-  svg.attr('transform',`translate(${m.l},${m.t})`);
-  const vals=data.map(d=>({x:+d[p.x],y:+d[p.y]}));
-  if(p.log)vals.forEach(v=>v.x=Math.log10(v.x||1));
-  const x=d3.scaleLinear().domain(d3.extent(vals,v=>v.x)).nice().range([0,mw]);
-  const y=d3.scaleLinear().domain(d3.extent(vals,v=>v.y)).nice().range([h,0]);
-  svg.append('g').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('y1',-h).attr('stroke','#eee'));
-  svg.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#eee'));
-  svg.selectAll('circle').data(vals).enter().append('circle').attr('cx',d=>x(d.x)).attr('cy',d=>y(d.y)).attr('r',6).attr('fill','steelblue').attr('opacity',0.2).append('title').text(d=>`${p.x}: ${d.x}\n${p.y}: ${d.y}`);
-  const trend=loess(vals.map(v=>v.x),vals.map(v=>v.y));
-  const lineGen=d3.line().x(d=>x(d[0])).y(d=>y(d[1]));
-  svg.append('path').attr('fill','none').attr('stroke','orange').attr('stroke-width',2).attr('d',lineGen(trend));
-  svg.append('text').attr('x',mw/2).attr('y',-5).attr('text-anchor','middle').text(p.title);
-}
+  function draw(data,p){
+    const svg=d3.select(p.el);
+    svg.selectAll('*').remove();
+    const g=svg.append('g');
+    const m={l:50,r:30,t:20,b:40},w=p.el==='svg'?300:+svg.node().clientWidth,mw=w-m.l-m.r,h=350-m.t-m.b;
+    g.attr('transform',`translate(${m.l},${m.t})`);
+    const vals=data.map(d=>({x:+d[p.x],y:+d[p.y]}));
+    if(p.log)vals.forEach(v=>v.x=Math.log10(v.x||1));
+    const x=d3.scaleLinear().domain(d3.extent(vals,v=>v.x)).nice().range([0,mw]);
+    const y=d3.scaleLinear().domain(d3.extent(vals,v=>v.y)).nice().range([h,0]);
+    g.append('g').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('y1',-h).attr('stroke','#eee'));
+    g.append('g').call(d3.axisLeft(y).ticks(6)).call(g=>g.selectAll('.tick line').clone().attr('x1',mw).attr('stroke','#eee'));
+    g.selectAll('circle').data(vals).enter().append('circle').attr('cx',d=>x(d.x)).attr('cy',d=>y(d.y)).attr('r',6).attr('fill','steelblue').attr('opacity',0.2).append('title').text(d=>`${p.x}: ${d.x}\n${p.y}: ${d.y}`);
+    const trend=loess(vals.map(v=>v.x),vals.map(v=>v.y));
+    const lineGen=d3.line().x(d=>x(d[0])).y(d=>y(d[1]));
+    g.append('path').datum(trend).attr('fill','none').attr('stroke','orange').attr('stroke-width',2).attr('d',lineGen);
+    g.append('text').attr('x',mw/2).attr('y',-5).attr('text-anchor','middle').text(p.title);
+  }
 function loess(x,y,b=0.3){
   const n=x.length,r=Math.max(2,Math.ceil(b*n));
   return x.map((x0,i)=>{
